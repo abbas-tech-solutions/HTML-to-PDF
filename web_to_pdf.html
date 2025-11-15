@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML to PDF Converter - Enhanced</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-blue': '#1c7ed6',
+                        'secondary-gray': '#f1f3f5',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- Load required libraries - Updated versions -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        /* Custom styles for better preview readability */
+        #content-to-convert {
+            min-height: 250px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 2px dashed #dee2e6;
+            transition: all 0.3s ease;
+        }
+        #content-to-convert.drag-over {
+            border-color: #1c7ed6;
+            background-color: #f0f7ff;
+        }
+        #content-to-convert:empty:before {
+            content: "Upload an HTML file or drag and drop it here to see its rendered content.";
+            color: #adb5bd;
+            font-style: italic;
+            display: block;
+            text-align: center;
+            padding-top: 50px;
+        }
+        /* Custom scrollbar for preview area */
+        #content-to-convert::-webkit-scrollbar { width: 8px; }
+        #content-to-convert::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 4px; }
+        #content-to-convert::-webkit-scrollbar-track { background: #f8f9fa; }
+
+        /* General font application */
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Success notification */
+        .notification {
+            animation: slideDown 0.3s ease-out;
+        }
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-secondary-gray min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-5xl bg-white shadow-xl rounded-xl p-6 md:p-10">
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">HTML to PDF Converter</h1>
+            <p class="text-gray-600">Upload your HTML file to convert its rendered content into a downloadable PDF.</p>
+        </div>
+
+        <!-- Success Notification -->
+        <div id="success-notification" class="hidden notification mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                <span>PDF generated successfully! Download started.</span>
+            </div>
+            <button onclick="document.getElementById('success-notification').classList.add('hidden')" class="text-green-700 hover:text-green-900">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Error Notification -->
+        <div id="error-notification" class="hidden notification mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            <div class="flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                </svg>
+                <span id="error-message">An error occurred. Please try again.</span>
+            </div>
+        </div>
+
+        <!-- File Upload Section with Drag & Drop -->
+        <div class="mb-6">
+            <label for="html-file-input" class="block text-sm font-medium text-gray-700 mb-2">
+                1. Select HTML File (.html, .htm, or .txt)
+            </label>
+            <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-primary-blue hover:bg-blue-50 transition-all duration-200">
+                <input type="file" id="html-file-input" accept=".html,.htm,.txt" 
+                       class="hidden"
+                       aria-label="Select HTML file"/>
+                <div class="space-y-2">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <p class="text-sm text-gray-600">
+                        <span class="font-semibold text-primary-blue">Click to upload</span> or drag and drop
+                    </p>
+                    <p class="text-xs text-gray-500">HTML, HTM, or TXT files (Max 10MB)</p>
+                    <p id="file-name" class="text-sm font-medium text-gray-900 mt-2 hidden"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PDF Options -->
+        <div class="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label for="page-orientation" class="block text-sm font-medium text-gray-700 mb-2">Page Orientation</label>
+                <select id="page-orientation" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:border-transparent">
+                    <option value="portrait">Portrait</option>
+                    <option value="landscape">Landscape</option>
+                </select>
+            </div>
+            <div>
+                <label for="page-size" class="block text-sm font-medium text-gray-700 mb-2">Page Size</label>
+                <select id="page-size" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:border-transparent">
+                    <option value="a4">A4</option>
+                    <option value="letter">Letter</option>
+                    <option value="legal">Legal</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <button id="convert-button" disabled
+                    class="flex-1 px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+                <span>Convert to PDF</span>
+            </button>
+            <button id="clear-button" disabled
+                    class="px-6 py-3 bg-gray-500 text-white font-semibold rounded-lg shadow-md hover:bg-gray-600 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                Clear
+            </button>
+        </div>
+        
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="hidden text-center p-4 bg-blue-100 text-blue-800 rounded-lg mb-4">
+            <div class="flex items-center justify-center space-x-2">
+                <svg class="animate-spin h-5 w-5 text-blue-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p>Converting HTML to PDF... Please wait.</p>
+            </div>
+        </div>
+
+        <!-- HTML Preview Area -->
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xl font-semibold text-gray-800">2. Rendered HTML Preview</h2>
+                <button id="toggle-preview" class="text-sm text-primary-blue hover:underline">Hide Preview</button>
+            </div>
+            <div id="content-to-convert" class="p-4 bg-white rounded-lg shadow-inner text-sm">
+                <!-- Rendered HTML content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const fileInput = document.getElementById('html-file-input');
+            const convertButton = document.getElementById('convert-button');
+            const clearButton = document.getElementById('clear-button');
+            const contentArea = document.getElementById('content-to-convert');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const successNotification = document.getElementById('success-notification');
+            const errorNotification = document.getElementById('error-notification');
+            const errorMessage = document.getElementById('error-message');
+            const dropZone = document.getElementById('drop-zone');
+            const fileName = document.getElementById('file-name');
+            const togglePreview = document.getElementById('toggle-preview');
+            const pageOrientation = document.getElementById('page-orientation');
+            const pageSize = document.getElementById('page-size');
+            
+            let uploadedContent = null;
+            let uploadedFileName = null;
+            let originalFileName = null;
+            const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+            // Helper function to show error
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorNotification.classList.remove('hidden');
+                setTimeout(() => {
+                    errorNotification.classList.add('hidden');
+                }, 5000);
+            }
+
+            // Helper function to show success
+            function showSuccess() {
+                successNotification.classList.remove('hidden');
+                setTimeout(() => {
+                    successNotification.classList.add('hidden');
+                }, 5000);
+            }
+
+            // Helper function to reset UI
+            function resetUI() {
+                uploadedContent = null;
+                uploadedFileName = null;
+                originalFileName = null;
+                contentArea.innerHTML = '';
+                fileInput.value = '';
+                fileName.classList.add('hidden');
+                convertButton.disabled = true;
+                clearButton.disabled = true;
+            }
+
+            // File validation
+            function validateFile(file) {
+                if (!file) return false;
+                
+                if (file.size > MAX_FILE_SIZE) {
+                    showError(`File size exceeds 10MB limit. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB.`);
+                    return false;
+                }
+                
+                const validExtensions = ['.html', '.htm', '.txt'];
+                const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+                
+                if (!validExtensions.includes(fileExtension)) {
+                    showError('Invalid file type. Please upload an HTML, HTM, or TXT file.');
+                    return false;
+                }
+                
+                return true;
+            }
+
+            // Process file
+            function processFile(file) {
+                if (!validateFile(file)) return;
+
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    try {
+                        uploadedContent = e.target.result;
+                        uploadedFileName = file.name.replace(/\.[^/.]+$/, '');
+                        originalFileName = file.name; // Store original filename
+                        contentArea.innerHTML = uploadedContent;
+                        fileName.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                        fileName.classList.remove('hidden');
+                        convertButton.disabled = false;
+                        clearButton.disabled = false;
+                    } catch (error) {
+                        showError('Error processing file content.');
+                        console.error('File processing error:', error);
+                    }
+                };
+
+                reader.onerror = () => {
+                    showError('Error reading file. Please try again.');
+                    resetUI();
+                };
+
+                reader.readAsText(file);
+            }
+
+            // File input change handler
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    processFile(file);
+                } else {
+                    resetUI();
+                }
+            });
+
+            // Drag and drop handlers
+            dropZone.addEventListener('click', () => fileInput.click());
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('drag-over');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                
+                const file = e.dataTransfer.files[0];
+                if (file) {
+                    fileInput.files = e.dataTransfer.files;
+                    processFile(file);
+                }
+            });
+
+            // Clear button handler
+            clearButton.addEventListener('click', () => {
+                resetUI();
+            });
+
+            // Toggle preview handler
+            togglePreview.addEventListener('click', () => {
+                const isHidden = contentArea.classList.contains('hidden');
+                if (isHidden) {
+                    contentArea.classList.remove('hidden');
+                    togglePreview.textContent = 'Hide Preview';
+                } else {
+                    contentArea.classList.add('hidden');
+                    togglePreview.textContent = 'Show Preview';
+                }
+            });
+
+            // Conversion Logic
+            convertButton.addEventListener('click', async () => {
+                if (!uploadedContent) {
+                    showError('Please upload an HTML file first.');
+                    return;
+                }
+                
+                convertButton.disabled = true;
+                loadingIndicator.classList.remove('hidden');
+                errorNotification.classList.add('hidden');
+                successNotification.classList.add('hidden');
+
+                const { jsPDF } = window.jspdf; 
+
+                try {
+                    // Get PDF settings
+                    const orientation = pageOrientation.value;
+                    const size = pageSize.value;
+                    
+                    // Map page sizes
+                    const pageSizeMap = {
+                        'a4': 'a4',
+                        'letter': 'letter',
+                        'legal': 'legal'
+                    };
+
+                    // Use html2canvas to render the content area to a canvas
+                    // Scale 2 for high quality output
+                    const canvas = await html2canvas(contentArea, { 
+                        scale: 2,
+                        logging: false,
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: '#ffffff',
+                        height: contentArea.scrollHeight,
+                        width: contentArea.scrollWidth,
+                    });
+                    
+                    // Initialize PDF with selected settings
+                    const pdf = new jsPDF(orientation[0], 'mm', pageSizeMap[size]);
+                    
+                    // Get PDF dimensions in mm
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = pdf.internal.pageSize.getHeight();
+                    
+                    // Calculate the image dimensions to maintain aspect ratio
+                    const imgWidth = pdfWidth;
+                    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+                    
+                    // Calculate how many pages we need
+                    const totalPages = Math.ceil(imgHeight / pdfHeight);
+                    
+                    // Convert canvas pixels to mm for accurate positioning
+                    const pixelsPerMM = canvas.width / pdfWidth;
+                    const pdfHeightInPixels = pdfHeight * pixelsPerMM;
+                    
+                    // Add pages with proper slicing
+                    for (let page = 0; page < totalPages; page++) {
+                        if (page > 0) {
+                            pdf.addPage();
+                        }
+                        
+                        // Calculate source Y position in pixels
+                        const sourceY = page * pdfHeightInPixels;
+                        const sourceHeight = Math.min(pdfHeightInPixels, canvas.height - sourceY);
+                        
+                        // Create a temporary canvas for this page slice
+                        const pageCanvas = document.createElement('canvas');
+                        pageCanvas.width = canvas.width;
+                        pageCanvas.height = sourceHeight;
+                        const pageCtx = pageCanvas.getContext('2d');
+                        
+                        // Draw the slice from the original canvas
+                        pageCtx.drawImage(
+                            canvas,
+                            0, sourceY, canvas.width, sourceHeight,  // Source rectangle
+                            0, 0, canvas.width, sourceHeight          // Destination rectangle
+                        );
+                        
+                        // Convert to image data
+                        const pageImgData = pageCanvas.toDataURL('image/png', 1.0);
+                        
+                        // Calculate the height for this page in mm
+                        const pageHeightMM = (sourceHeight * pdfWidth) / canvas.width;
+                        
+                        // Add to PDF
+                        pdf.addImage(pageImgData, 'PNG', 0, 0, imgWidth, pageHeightMM);
+                    }
+
+                    // Use original filename with .pdf extension
+                    let filename = 'converted-document.pdf';
+                    if (originalFileName) {
+                        // Remove original extension and add .pdf
+                        filename = originalFileName.replace(/\.[^/.]+$/, '') + '.pdf';
+                    } else if (uploadedFileName) {
+                        filename = uploadedFileName + '.pdf';
+                    }
+
+                    // Save/Download the PDF file
+                    pdf.save(filename);
+                    
+                    showSuccess();
+                    
+                } catch (error) {
+                    console.error('PDF conversion failed:', error);
+                    showError('An error occurred during PDF conversion. Please check the console for details.');
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                    convertButton.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
